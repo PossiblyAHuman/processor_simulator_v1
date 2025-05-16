@@ -7,7 +7,8 @@ class CPU:
         self.registers = [0] * 32
         #instead of a traditional Link Register and a separate stack to store return addresses, I just combined them onto the stack
         self.LR_Stack = []
-        self.ALU = ALU(self.PC, self.registers, self.LR_Stack, self.DM)
+        self.Zflag = [0]
+        self.ALU = ALU(self.PC, self.registers, self.LR_Stack, self.DM, self.Zflag)
         self.VideoBuffer = [[0 for _ in range(50)] for _ in range(50)]
     
     def fetch(self):

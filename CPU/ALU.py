@@ -34,11 +34,12 @@ registerToNumber = {
 }
 
 class ALU:
-    def __init__(self, PC, registers, LR_Stack, Datamemory):
+    def __init__(self, PC, registers, LR_Stack, Datamemory, Zflag):
         self.PC = PC
         self.registers = registers
         self.LR_Stack = LR_Stack
         self.DM = Datamemory
+        self.Zflag = Zflag
         #Normally the instruction is processed by the entire ALU and the MUX chooses the output that will be forwarded
         #It made more sense to just select which function to run in Python
         self.instructionsMux = {
@@ -46,11 +47,12 @@ class ALU:
             "MUL": self.Multiply,       #multiply
             "DIV": self.Divide,         #divide
             "MOV": self.Move,           #move from register to register
-            "IMOV": self.iMove,         #Move an immediate value to register
+            "IMOV": self.Move,         #Move an immediate value to register
             "LDR": self.Load,           #load from memory to register
-            "ILDR": self.iLoad,         #load from memory with immediate address
+            "ILDR": self.Load,         #load from memory with immediate address
             "STR": self.Store,          #store from register to memory
-            "ISTR": self.iStore,
+            "ISTR": self.Store,
+            "CMP": self.Compare,
             "B": self.Branch,
             "BX": self.BranchReturn,
         }
@@ -79,41 +81,66 @@ class ALU:
 
     #MOV, dReg, sReg1
     def Move(self, instruction):
-        Destination = registerToNumber[instruction[1]]
-        Source = registerToNumber[instruction[2]]
-        self.registers[Destination] = self.registers[Source]
+        if 'R' in instruction[2]:
+            Destination = registerToNumber[instruction[1]]
+            Source = registerToNumber[instruction[2]]
+            self.registers[Destination] = self.registers[Source]
+        else:
+            Destination = registerToNumber[instruction[1]]
+            ImmediateValue = int(instruction[2])
+            self.registers[Destination] = ImmediateValue
 
     #IMOV, dReg, immediate
-    def iMove(self, instruction):
-        Destination = registerToNumber[instruction[1]]
-        ImmediateValue = int(instruction[2])
-        self.registers[Destination] = ImmediateValue
+    #def iMove(self, instruction):
+    #    Destination = registerToNumber[instruction[1]]
+    #    ImmediateValue = int(instruction[2])
+    #    self.registers[Destination] = ImmediateValue
 
     #LDR, dReg, [sReg]
     def Load(self, instruction):
-        Destination = registerToNumber[instruction[1]]
-        SourceAddress = self.registers[registerToNumber[instruction[2]]]
-        DataFetched = self.DM[SourceAddress]
-        self.registers[Destination] = DataFetched
+        if 'R' in instruction[2]:
+            Destination = registerToNumber[instruction[1]]
+            SourceAddress = self.registers[registerToNumber[instruction[2]]]
+            DataFetched = self.DM[SourceAddress]
+            self.registers[Destination] = DataFetched
+        else:
+            Destination = registerToNumber[instruction[1]]
+            ImmediateAddress = int(instruction[2])
+            DataFetched = self.DM[ImmediateAddress]
+            self.registers[Destination] = DataFetched
     
     #ILDR, dReg, [immediate]
-    def iLoad(self, instruction):
-        Destination = registerToNumber[instruction[1]]
-        ImmediateAddress = int(instruction[2])
-        DataFetched = self.DM[ImmediateAddress]
-        self.registers[Destination] = DataFetched
+    #def iLoad(self, instruction):
+    #    Destination = registerToNumber[instruction[1]]
+    #    ImmediateAddress = int(instruction[2])
+    #    DataFetched = self.DM[ImmediateAddress]
+    #    self.registers[Destination] = DataFetched
 
     #STR, sReg, [dReg]
     def Store(self, instruction):
-        RegisterData = self.registers[registerToNumber[instruction[1]]]
-        StoreAddress = self.registers[registerToNumber[instruction[2]]]
-        self.DM[StoreAddress] = RegisterData
+        if 'R' in instruction[2]:
+            RegisterData = self.registers[registerToNumber[instruction[1]]]
+            StoreAddress = self.registers[registerToNumber[instruction[2]]]
+            self.DM[StoreAddress] = RegisterData
+        else:
+            RegisterData = self.registers[registerToNumber[instruction[1]]]
+            StoreAddress = int(instruction[2])
+            self.DM[StoreAddress] = RegisterData
 
     #ISTR, sReg, immediate
-    def iStore(self, instruction):
-        RegisterData = self.registers[registerToNumber[instruction[1]]]
-        StoreAddress = int(instruction[2])
-        self.DM[StoreAddress] = RegisterData
+    #def iStore(self, instruction):
+    #    RegisterData = self.registers[registerToNumber[instruction[1]]]
+    #    StoreAddress = int(instruction[2])
+    #    self.DM[StoreAddress] = RegisterData
+
+    #Normally Compare would set more flags, but in this simulation we only care about Zero flag
+    def Compare(self, instruction):
+        registerData1 = self.registers[registerToNumber[instruction[1]]]
+        registerData2 = self.registers[registerToNumber[instruction[2]]]
+        if registerData1 == registerData2:
+            self.Zflag = 1
+        else:
+            self.Zflag = 0
 
     #B immediate
     def Branch(self, instruction):
@@ -121,6 +148,12 @@ class ALU:
         self.LR_Stack.append(self.PC[0]+1)
         self.PC[0] = TargetAddress
     
+    def BranchIfEqual(self, instruction):
+        if self.Zflag[0] == 1: 
+            TargetAddress = int(instruction[1])
+            self.LR_Stack.append(self.PC[0]+1)
+            self.PC[0] = TargetAddress
+
     #BX
     def BranchReturn(self, instruction):
         self.PC[0] = self.LR_Stack.pop()
@@ -128,8 +161,6 @@ class ALU:
     def ExecuteInstruction(self, instruction):
         operation = self.instructionsMux[instruction[0]]
         operation(instruction)
-
-
 
 
 """
@@ -142,8 +173,6 @@ class ALU:
     def Branch(self, instruction):
 
     def BranchEqual(self, instruction):
-
-    def BranchReturn(self, instruction):
 """
 """   
     "AND":      
@@ -152,7 +181,5 @@ class ALU:
     "NOT":      
     "SHL":      #shift left
     "SHR":      #shift right
-    "B":        #unconditional branch
     "BEQ":      #branch if equal
-    "BX":       #branch return
 """
