@@ -34,12 +34,14 @@ registerToNumber = {
 }
 
 class ALU:
-    def __init__(self, PC, registers, LR_Stack, Datamemory, Zflag):
+    def __init__(self, PC, registers, LR_Stack, Datamemory, Zflag, VideoPause, UART):
         self.PC = PC
         self.registers = registers
         self.LR_Stack = LR_Stack
         self.DM = Datamemory
         self.Zflag = Zflag
+        self.VideoPause = VideoPause
+        self.UART = UART
         #Normally the instruction is processed by the entire ALU and the MUX chooses the output that will be forwarded
         #It made more sense to just select which function to run in Python
         self.instructionsMux = {
@@ -50,11 +52,14 @@ class ALU:
             "IMOV": self.Move,         #Move an immediate value to register
             "LDR": self.Load,           #load from memory to register
             "ILDR": self.Load,         #load from memory with immediate address
+            "ULOAD": self.UARTLoad,
             "STR": self.Store,          #store from register to memory
             "ISTR": self.Store,
             "CMP": self.Compare,
             "B": self.Branch,
+            "BL": self.BranchLink,
             "BX": self.BranchReturn,
+            "PAUSE": self.PauseVideo,
         }
 
     #ADD, dReg, sReg1, sReg2
@@ -109,6 +114,10 @@ class ALU:
             DataFetched = self.DM[ImmediateAddress]
             self.registers[Destination] = DataFetched
     
+    def UARTLoad(self, instruction):
+        Destination = registerToNumber[instruction[1]]
+        self.registers[Destination] = self.UART[0]
+
     #ILDR, dReg, [immediate]
     #def iLoad(self, instruction):
     #    Destination = registerToNumber[instruction[1]]
@@ -127,6 +136,9 @@ class ALU:
             StoreAddress = int(instruction[2])
             self.DM[StoreAddress] = RegisterData
 
+    def setMatrix(self, instruction):
+        x = 1
+
     #ISTR, sReg, immediate
     #def iStore(self, instruction):
     #    RegisterData = self.registers[registerToNumber[instruction[1]]]
@@ -142,21 +154,28 @@ class ALU:
         else:
             self.Zflag = 0
 
-    #B immediate
     def Branch(self, instruction):
+        TargetAddress = int(instruction[1])
+        self.PC[0] = TargetAddress
+
+    def BranchLink(self, instruction):
         TargetAddress = int(instruction[1])
         self.LR_Stack.append(self.PC[0]+1)
         self.PC[0] = TargetAddress
-    
+
     def BranchIfEqual(self, instruction):
         if self.Zflag[0] == 1: 
             TargetAddress = int(instruction[1])
             self.LR_Stack.append(self.PC[0]+1)
             self.PC[0] = TargetAddress
-
+    
     #BX
     def BranchReturn(self, instruction):
         self.PC[0] = self.LR_Stack.pop()
+
+    #PAUSE
+    def PauseVideo(self, instruction):
+        self.VideoPause[0] = not self.VideoPause[0]
 
     def ExecuteInstruction(self, instruction):
         operation = self.instructionsMux[instruction[0]]
